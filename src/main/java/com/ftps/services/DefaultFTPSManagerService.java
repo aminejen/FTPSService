@@ -64,11 +64,11 @@ public class DefaultFTPSManagerService {
         return ftps;
     }
 
-    protected void transferFile(String remotePath, String localPath, TransferType transfertType) throws FTPSFileTransferException {
-        this.transferFile(remotePath, localPath, DEFAULT_STATE_OF_BINARY_TYPE, DEFAULT_BUFFER_SIZE, transfertType);
+    protected void _transferFile(String remotePath, String localPath, TransferType transfertType) throws FTPSFileTransferException {
+        _transferFile(remotePath, localPath, DEFAULT_STATE_OF_BINARY_TYPE, DEFAULT_BUFFER_SIZE, transfertType);
     }
 
-    protected void transferFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize, TransferType transfertType) throws FTPSFileTransferException {
+    protected void _transferFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize, TransferType transfertType) throws FTPSFileTransferException {
         FTPSClient ftps = null;
         try {
             ftps = this.getNewConnection();
@@ -105,20 +105,20 @@ public class DefaultFTPSManagerService {
     }
 
     public void downloadFile(String remotePath, String localPath) throws FTPSFileTransferException {
-        transferFile(remotePath, localPath, TransferType.DOWNLOAD);
+        _transferFile(remotePath, localPath, TransferType.DOWNLOAD);
     }
 
-    public void downloadFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize, TransferType transfertType) throws FTPSFileTransferException {
-        transferFile(remotePath, localPath, isBinaryTransferOn, bufferSize, TransferType.DOWNLOAD);
+    public void downloadFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize) throws FTPSFileTransferException {
+        _transferFile(remotePath, localPath, isBinaryTransferOn, bufferSize, TransferType.DOWNLOAD);
     }
 
 
     public void uploadFile(String remotePath, String localPath) throws FTPSFileTransferException {
-        transferFile(remotePath, localPath, TransferType.UPLOAD);
+        _transferFile(remotePath, localPath, TransferType.UPLOAD);
     }
 
-    public void uploadFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize, TransferType transfertType) throws FTPSFileTransferException {
-        transferFile(remotePath, localPath, isBinaryTransferOn, bufferSize, TransferType.UPLOAD);
+    public void uploadFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize) throws FTPSFileTransferException {
+        _transferFile(remotePath, localPath, isBinaryTransferOn, bufferSize, TransferType.UPLOAD);
     }
 
 }
