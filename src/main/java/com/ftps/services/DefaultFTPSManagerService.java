@@ -1,33 +1,39 @@
 package com.ftps.services;
 
-import com.ftps.customExceptions.FTPSFileTransferException;
+import com.ftps.exceptions.FTPSFileTransferException;
+import com.ftps.model.FTPSFailedTransferReport;
+import com.ftps.model.FTPSFileTransferBuilderImpl;
+import com.ftps.model.FTPSFileTransferDecorator;
+import com.ftps.model.FTPSFileTransferReport;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPConnectionClosedException;
 import org.apache.commons.net.ftp.FTPReply;
 import org.apache.commons.net.ftp.FTPSClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
+import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * Created by Amine Jendoubi on 03/10/2017.
  */
 @Service
-public class DefaultFTPSManagerService {
+@Qualifier("defaultFTPSManagerService")
+public class DefaultFTPSManagerService implements FTPSManagerService {
 
-    private enum TransferType {
-        DOWNLOAD, UPLOAD
-    }
 
-    private static int DEFAULT_BUFFER_SIZE = 1000;
-    private static boolean DEFAULT_STATE_OF_BINARY_TYPE = true;
+    private static String SECURITY_PROT_PRIVATE_TYPE = "P";
 
+    private static Logger LOGGER = Logger.getLogger(DefaultFTPSManagerService.class.getName());
     private String host;
     private String userName;
     private String password;
     private String protocol;
+
 
     @Autowired
     public DefaultFTPSManagerService(Environment env) {
@@ -38,15 +44,15 @@ public class DefaultFTPSManagerService {
 
     }
 
-    protected FTPSClient getNewConnection() throws IOException {
+
+    public FTPSClient getNewConnection() throws IOException {
         FTPSClient ftps = new FTPSClient(this.protocol);
         try {
             ftps.connect(this.host);
             int reply = ftps.getReplyCode();
             if (FTPReply.isPositiveCompletion(reply)) {
                 if (ftps.login(userName, password)) {
-                    // Set data channel protection to private
-                    ftps.execPROT("P");
+                    ftps.execPROT(SECURITY_PROT_PRIVATE_TYPE);
                 } else {
                     ftps.logout();
                 }
@@ -56,7 +62,7 @@ public class DefaultFTPSManagerService {
                 try {
                     ftps.disconnect();
                 } catch (IOException f) {
-                    // do nothing
+                    LOGGER.severe(f.getMessage());
                 }
             }
             throw e;
@@ -64,31 +70,58 @@ public class DefaultFTPSManagerService {
         return ftps;
     }
 
-    protected void _transferFile(String remotePath, String localPath, TransferType transfertType) throws FTPSFileTransferException {
-        _transferFile(remotePath, localPath, DEFAULT_STATE_OF_BINARY_TYPE, DEFAULT_BUFFER_SIZE, transfertType);
+
+    boolean isFilePresentOnRemote(FTPSClient ftps, String filePath) throws IOException {
+        InputStream inputStream = ftps.retrieveFileStream(filePath);
+        int returnCode = ftps.getReplyCode();
+        if (inputStream == null || returnCode == 550) {
+            inputStream.close();
+            return false;
+        }
+        return true;
     }
 
-    protected void _transferFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize, TransferType transfertType) throws FTPSFileTransferException {
+
+    public FTPSFileTransferReport transferFiles(FTPSFileTransferBuilderImpl fTPSFileTransferBuilderImpl) throws FTPSFileTransferException {
         FTPSClient ftps = null;
+        FTPSFileTransferReport report = new FTPSFileTransferReport();
         try {
             ftps = this.getNewConnection();
-            if (isBinaryTransferOn) {
-                ftps.setFileType(FTP.BINARY_FILE_TYPE);
-            }
-            ftps.setBufferSize(bufferSize);
             ftps.enterLocalPassiveMode();
-            if (transfertType.equals(TransferType.UPLOAD)) {
-                InputStream input;
-                input = new FileInputStream(localPath);
-                ftps.storeFile(remotePath, input);
-                input.close();
-            } else {
-                OutputStream output;
-                output = new FileOutputStream(localPath);
-                ftps.retrieveFile(remotePath, output);
-                output.close();
+            List<FTPSFileTransferDecorator> fTPSFileTransferDecorators = fTPSFileTransferBuilderImpl.getFileTransferDecorators();
+            for (FTPSFileTransferDecorator fTPSFileTransferDecorator : fTPSFileTransferDecorators) {
+                try {
+                    if (fTPSFileTransferDecorator.isBinaryTransfer()) {
+                        ftps.setFileType(FTP.BINARY_FILE_TYPE);
+                    }
+                    ftps.setBufferSize(fTPSFileTransferDecorator.getBufferSize());
+                    if (fTPSFileTransferDecorator.getTransferType().equals(FTPSFileTransferDecorator.TransferType.UPLOAD)) {
+                        if (fTPSFileTransferDecorator.getLocalFile().length() > 0) {
+                            InputStream input;
+                            input = new FileInputStream(fTPSFileTransferDecorator.getLocalFile().getPath());
+                            ftps.makeDirectory(fTPSFileTransferDecorator.getRemoteFile().getParent());
+                            ftps.storeFile(fTPSFileTransferDecorator.getRemoteFile().getPath(), input);
+                            input.close();
+                        } else {
+                            throw new FTPSFileTransferException(FTPSFileTransferException.EMPTY_MESSAGE);
+                        }
+                    } else {
+                        OutputStream output;
+                        output = new FileOutputStream(fTPSFileTransferDecorator.getLocalFile().getPath());
+                        ftps.retrieveFile(fTPSFileTransferDecorator.getRemoteFile().getPath(), output);
+                        output.close();
+                        if (fTPSFileTransferDecorator.getLocalFile().length() == 0) {
+                            fTPSFileTransferDecorator.getLocalFile().delete();
+                            throw new FTPSFileTransferException(FTPSFileTransferException.EMPTY_MESSAGE);
+                        }
+                    }
+                } catch (Exception ex) {
+                    report.getFailedTransfers().add(new FTPSFailedTransferReport(fTPSFileTransferDecorator, ex));
+                }
             }
             ftps.logout();
+            report.endTransfer();
+            return report;
         } catch (FTPConnectionClosedException exception) {
             throw new FTPSFileTransferException(exception);
         } catch (IOException exception) {
@@ -98,27 +131,10 @@ public class DefaultFTPSManagerService {
                 try {
                     ftps.disconnect();
                 } catch (IOException f) {
-                    // do nothing
+                    LOGGER.severe(f.getMessage());
                 }
             }
         }
-    }
-
-    public void downloadFile(String remotePath, String localPath) throws FTPSFileTransferException {
-        _transferFile(remotePath, localPath, TransferType.DOWNLOAD);
-    }
-
-    public void downloadFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize) throws FTPSFileTransferException {
-        _transferFile(remotePath, localPath, isBinaryTransferOn, bufferSize, TransferType.DOWNLOAD);
-    }
-
-
-    public void uploadFile(String remotePath, String localPath) throws FTPSFileTransferException {
-        _transferFile(remotePath, localPath, TransferType.UPLOAD);
-    }
-
-    public void uploadFile(String remotePath, String localPath, boolean isBinaryTransferOn, int bufferSize) throws FTPSFileTransferException {
-        _transferFile(remotePath, localPath, isBinaryTransferOn, bufferSize, TransferType.UPLOAD);
     }
 
 }
