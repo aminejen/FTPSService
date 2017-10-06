@@ -10,6 +10,10 @@ public class FTPSFileTransferDecorator {
         DOWNLOAD, UPLOAD
     }
 
+    public enum FileType{
+        FOLDER,FILE
+    }
+
     private static int DEFAULT_BUFFER_SIZE = 1000;
     private static boolean DEFAULT_STATE_OF_BINARY_TYPE = true;
 
@@ -18,21 +22,23 @@ public class FTPSFileTransferDecorator {
     private File localFile;
     private int bufferSize;
     private boolean isBinaryTransfer;
-    public TransferType transferType;
+    private TransferType transferType;
+    private FileType fileType;
 
     public FTPSFileTransferDecorator() {
         this.bufferSize = DEFAULT_BUFFER_SIZE;
         this.isBinaryTransfer = DEFAULT_STATE_OF_BINARY_TYPE;
     }
 
-    public FTPSFileTransferDecorator(File remoteFile, File localFile, TransferType transferType) {
+    public FTPSFileTransferDecorator(File remoteFile, File localFile, TransferType transferType,FileType fileType) {
         this();
         this.remoteFile = remoteFile;
         this.localFile = localFile;
         this.transferType = transferType;
+        this.fileType=fileType;
     }
 
-    public FTPSFileTransferDecorator(File remoteFile, File localFile, int bufferSize, boolean isBinaryTransfer, TransferType transferType) {
+    public FTPSFileTransferDecorator(File remoteFile, File localFile, int bufferSize, boolean isBinaryTransfer, TransferType transferType ,FileType fileType) {
         this.remoteFile = remoteFile;
         this.localFile = localFile;
         this.bufferSize = bufferSize;
@@ -82,6 +88,14 @@ public class FTPSFileTransferDecorator {
 
     public boolean isValid() {
         return (this.remoteFile != null && this.localFile != null);
+    }
+
+    public FileType getFileType() {
+        return fileType;
+    }
+
+    public void setFileType(FileType fileType) {
+        this.fileType = fileType;
     }
 
     @Override

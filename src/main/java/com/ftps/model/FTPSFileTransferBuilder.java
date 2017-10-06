@@ -1,6 +1,9 @@
 package com.ftps.model;
 
+import org.apache.commons.net.ftp.FTPSClient;
+
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -14,6 +17,8 @@ public interface FTPSFileTransferBuilder {
 
     void addFolderUpload(Folder remoteFolder, Folder localFolder);
 
+    void addFolderDownload(Folder remoteFolder, Folder localFolder);
+
     void addFileDownload(File remoteFile, File localFile, int bufferSize, boolean isBinaryTransfer);
 
     void addFileUpload(File remoteFile, File localFile, int bufferSize, boolean isBinaryTransfer);
@@ -22,5 +27,6 @@ public interface FTPSFileTransferBuilder {
 
     List<FTPSFileTransferDecorator> getFileTransferDecorators();
 
+    void extractDownloadFolderFilesFromServerInTheSameBuilder(FTPSFileTransferBuilder fTPSFileTransferBuilder,FTPSClient ftps) throws IOException;
 
 }
